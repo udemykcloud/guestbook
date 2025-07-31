@@ -77,10 +77,11 @@ jobs:
 
         cd $OVERLAY_PATH
         kustomize edit set image ${IMAGE_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
+        pwd
+        ls -lR
         cd ../..
 
-        # Verify file exists
-        cat $OVERLAY_PATH/kustomization.yaml
+
 
         git config --global user.email "${COMMIT_EMAIL}"
         git config --global user.name "${COMMIT_NAME}"
