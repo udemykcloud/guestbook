@@ -79,7 +79,7 @@ jobs:
         kustomize edit set image ${IMAGE_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
         pwd
         ls -lR
-        cd ../..
+        cd ../../..
 
 
 
