@@ -1,20 +1,18 @@
-name: Guestbook CI/CD Pipeline
+name: Guestbook CI/CD - Production
 
 on:
-  push:
-    branches:
-      - staging1
   pull_request:
     types:
       - closed
     branches:
       - main
 
+permissions:
+  contents: write
+
 jobs:
-  build-and-deploy:
-    if: |
-      github.ref == 'refs/heads/staging' ||
-      (github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
+  build-and-deploy-prod:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
 
     env:
@@ -26,10 +24,10 @@ jobs:
       MANIFESTS_REPO: "udemykcloud/Argocd" 
 
     steps:
-    - name: Checkout correct branch
+    - name: Checkout Main Branch
       uses: actions/checkout@v4
       with:
-        ref: ${{ github.event_name == 'push' && 'staging' || 'main' }}
+        ref: main
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -41,9 +39,8 @@ jobs:
         pip install -r app/requirements.txt
         pip install pytest pytest-cov
 
-    - name: Run backend tests with coverage
-      run: |
-        pytest --cov=app --cov-report=term-missing app/
+    - name: Run backend tests (ignore failures)
+      run: pytest --cov=app --cov-report=term-missing app/
       continue-on-error: true
 
     - name: Log in to Docker Hub
@@ -51,39 +48,25 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        IMAGE_TAG="green"
+        IMAGE_TAG="prod-$(date +%Y%m%d-%H%M%S)-${GITHUB_SHA::7}"
         echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
         docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ./app
         docker push ${IMAGE_NAME}:${IMAGE_TAG}
 
-    - name: Update rollout manifest image in Kustomize
+    - name: Update Production Manifest in Separate Repo
       run: |
-        BRANCH_NAME=${{ github.event_name == 'push' && 'staging' || 'main' }}
-
-        # Clone manifests repo
         git clone https://x-access-token:${{ secrets.ARGO_GITHUB_TOKEN }}@github.com/${MANIFESTS_REPO}.git manifests-repo
         cd manifests-repo
 
-        if [ "$BRANCH_NAME" = "staging" ]; then
-          OVERLAY_PATH="kustomization-guestbook-multiple-environment/Overlays/dev"
-          TARGET_BRANCH="staging"
-        else
-          OVERLAY_PATH="kustomization-guestbook-multiple-environment/Overlays/Prod"
-          TARGET_BRANCH="main"
-        fi
-
-        git checkout $TARGET_BRANCH
-
-        echo "Updating overlay: $OVERLAY_PATH"
+        git checkout main
+        OVERLAY_PATH="kustomization-guestbook-multiple-environment/Overlays/Prod"
 
         cd $OVERLAY_PATH
         kustomize edit set image ${IMAGE_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
-        pwd
-        ls -lR
         cd ../../..
 
         git config --global user.email "${COMMIT_EMAIL}"
         git config --global user.name "${COMMIT_NAME}"
-        git add $OVERLAY_PATH/kustomization.yaml
-        git commit -m "Update image to ${IMAGE_NAME}:${IMAGE_TAG} via GitHub Actions" || echo "No changes to commit"
-        git push origin $TARGET_BRANCH
+        git add ${OVERLAY_PATH}/kustomization.yaml
+        git commit -m "Prod: Update image to ${IMAGE_NAME}:${IMAGE_TAG}" || echo "No changes to commit"
+        git push origin main
