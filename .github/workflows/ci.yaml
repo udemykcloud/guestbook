@@ -74,7 +74,6 @@ jobs:
         git checkout $TARGET_BRANCH
 
         echo "Updating overlay: $OVERLAY_PATH"
-        ls -R overlays
 
         cd $OVERLAY_PATH
         kustomize edit set image ${IMAGE_NAME}=${IMAGE_NAME}:${IMAGE_TAG}
