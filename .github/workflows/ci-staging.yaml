@@ -37,8 +37,7 @@ jobs:
         pip install pytest pytest-cov
 
     - name: Run backend tests (ignore failures)
-      run: |
-        pytest --cov=app --cov-report=term-missing app/
+      run: pytest --cov=app --cov-report=term-missing app/
       continue-on-error: true
 
     - name: Log in to Docker Hub
